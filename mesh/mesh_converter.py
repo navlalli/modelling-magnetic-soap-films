@@ -1,14 +1,13 @@
-""" Converting from .msh to .xdmf for use in Fenics 
-Must add physical markers for subdomains and external boundaries for this to work 
-Note how prune_z=True is called in meshConversion(). This is for 2d meshes. Set 
-to false for 3d meshes.
+""" Convert from .msh to .xdmf for use in fenicsx 
+Must add physical markers for subdomains and external boundaries in gmsh.
 """
 
 import meshio
+import sys
 
-def mesh_conversion(mesh_file):
-    """ Convert mesh from .msh (created in gmsh) to .xdmf
-    mesh_file = name of .msh file (excluding .msh), string 
+def mesh_conversion(mesh_dir, mesh_file):
+    """ Convert mesh from .msh (created with gmsh) to .xdmf
+    mesh_file = name of .msh file (excluding .msh)
     """
     mesh_from_file = meshio.read(mesh_dir + mesh_file + ".msh")
     
@@ -19,21 +18,18 @@ def mesh_conversion(mesh_file):
         out_mesh = meshio.Mesh(points=points, cells={cell_type: cells}, cell_data={"name_to_read":[cell_data]})
         return out_mesh
 
-    # mesh and cell markers 
+    # Mesh and cell markers - prune_z = True since 2d meshes
     triangle_mesh = create_mesh(mesh_from_file, "triangle", prune_z=True)
     xdmf_file = mesh_file 
     meshio.write(mesh_dir + xdmf_file + ".xdmf", triangle_mesh)
-    # facet markers 
+    # Facet markers 
     line_mesh = create_mesh(mesh_from_file, "line", prune_z=True)
     meshio.write(mesh_dir + xdmf_file + "Facet.xdmf", line_mesh)
 
 
 if __name__ == "__main__":
-    # mesh_dir = "/home/nav/navScripts/fenicsx/ferro-thickness/mesh/uniform_meniscus15249/"
-    # mesh_conversion("uniform_meniscus")
-    mesh_dir = "/home/nav/navScripts/fenicsx/ferro-thickness/mesh/radial_refinement1039200/"
-    mesh_conversion("radial_refinement")
-    # mesh_dir = "/home/nav/navScripts/fenicsx/ferro-thickness/mesh/radial_unit_80006/"
-    # mesh_conversion("radial_unit")
+    mesh_name = sys.argv[1]  # e.g. radial_unit
+    ID = sys.argv[2]  # N. of cells used
+    mesh_conversion(f"./{mesh_name}{ID}/", mesh_name)
     
-    print("Finished successfully")
+    print("Mesh conversion complete")
