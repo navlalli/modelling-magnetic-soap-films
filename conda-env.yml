@@ -1,0 +1,15 @@
+name: fenicsx06
+channels:
+  - conda-forge
+  - defaults
+dependencies:
+  - fenics-dolfinx=0.6.0
+  - mpich=4.1.2
+  - pyvista=0.42.3
+  - matplotlib=3.8.*
+  - scipy=1.11.*
+  - meshio==5.3.*
+  - pip=23.3.1
+  - pip:
+      - gmsh==4.11.1
+      - magpylib==4.4.*
