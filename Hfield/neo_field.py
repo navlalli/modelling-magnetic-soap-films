@@ -37,17 +37,10 @@ def check_Hmag(Hmag):
     """ Check Hmag is symmetrical """
     nr = 55
     np.testing.assert_allclose(Hmag[nr, :], Hmag[-nr-1, :])
-    line = Hmag[750, :]
     print("Test passed")
-    fig, ax = plt.subplots(constrained_layout=True)
-    ax.plot(np.linspace(0, 1, len(line)), line, 'r-')
-    ax.set_xlabel("", fontsize=12)
-    ax.set_ylabel("", fontsize=12)
-    # ax.legend(loc="best")
-    plt.show()
 
-def left_exp():
-    """ Create Hfield for domain aligning with experiment """
+def left_exp(save=0):
+    """ Create Hfield for domain aligning with experiments """
     # Magnet dimensions
     diam = 38.5  # (mm)
     height = 10.0  # (mm)
@@ -61,11 +54,10 @@ def left_exp():
     remanence = 1430  # (mT)
     rotation_object = Rotation.from_euler('y', 90, degrees=True)
     neo = magpy.magnet.Cylinder(
-        magnetization = (0, 0, -remanence),  # In CS before rotation 
+        magnetization = (0, 0, -remanence),  # In coordinate system before rotation 
         dimension = (diam, height),  
         position = (0, 0, 0),
         orientation = rotation_object)  # Magnet extends -height<x<0 and -diam/2<y<diam/2
-
     print(f"{remanence = :.2f} mT")
     
     # Move magnet so (0, 0) is (0, 0) in the simulations - without neo.move, (0, 0)
@@ -81,7 +73,6 @@ def left_exp():
         plt.show()
 
     # plot_magnet()
-    # sys.exit(0)
 
     # Create a grid in the x-y plane at z = 0
     nPoints = 1501
@@ -94,28 +85,22 @@ def left_exp():
     grid = np.array([[(x,y,0) for x in xs] for y in ys]) 
 
     Hfield = neo.getH(grid)  # (mT)
-    Hx_magpy = Hfield[:,:,0]
-    Hy_magpy = Hfield[:,:,1]
+    # Hx_magpy = Hfield[:,:,0]
+    # Hy_magpy = Hfield[:,:,1]
     # Hz_magpy = Hfield[:,:,2]    
     Hmag = np.linalg.norm(Hfield, axis=2)    
+    check_Hmag(Hmag)
+    # Location and value of max(Hmag)
     i, j = np.unravel_index(Hmag.argmax(), Hmag.shape)
     print(f"{i = } {j = }")
-    print(f"{Hmag[i, j] = }")
-    print(f"{np.max(Hmag) = }")
-    print(f"{np.shape(Hmag) = }")
-    check_Hmag(Hmag)
-    # print(f"{np.shape(xs) = }")
-    # print(f"{np.shape(ys) = }")
-    # print(f"{np.shape(Hx_magpy) = }")
-    # print(f"{np.shape(Hy_magpy) = }")
+    print(f"{Hmag[i, j] = :.2f} kA/m")
     
     field_viewer(xs, ys, Hmag, title="Hmag", cbar_label="Hmag (kA/m)")
-
     # stream_viewer(grid, Hfield, title="Hmag (kA/m)")
         
     def save_field():
         """ Save x and y positions and Hmag for phoresis work """
-        save_dir = "/home/nav/navScripts/fenicsx/ferro-thickness/Hfield/exp_meniscus_left/"
+        save_dir = "./exp_meniscus_left/"
         header = f"x position (mm), yposition (mm) with origin in bottom left of mesh for domain of {thin_film_diam} mm diameter. Saved from {f_name}"
         pos = np.column_stack((xs, ys))
         np.savetxt(save_dir + "pos.txt", pos, header=header)
@@ -123,10 +108,11 @@ def left_exp():
         np.savetxt(save_dir + "Hmag.txt", Hmag, header=header)
         print("Saved")
 
-    # save_field()
+    if save:
+        save_field()
 
-def left_unit():
-    """ Create Hfield for domain of unit diameter """
+def left_unit(save=0):
+    """ Create Hfield for domain of unit size """
     # Magnet dimensions
     diam = 10.0  # (mm)
     height = 10.0  # (mm)
@@ -139,12 +125,11 @@ def left_unit():
     remanence = 1430  # (mT)
     rotation_object = Rotation.from_euler('y', 90, degrees=True)
     neo = magpy.magnet.Cylinder(
-        magnetization = (0, 0, -remanence),  # In CS before rotation 
+        magnetization = (0, 0, -remanence),  # In coordinate system before rotation 
         dimension = (diam, height),  
         position = (0, 0, 0),
         orientation = rotation_object)  # Magnet extends -height<x<0 and -diam/2<y<diam/2
-
-    print(f"{remanence = :.2f} mT")
+    print(f"\n{remanence = :.2f} mT")
     
     # Move magnet so (0, 0) is (0, 0) in the simulations - without neo.move, (0, 0)
     # is the centre of the magnet
@@ -159,7 +144,6 @@ def left_unit():
         plt.show()
 
     # plot_magnet()
-    # sys.exit(0)
 
     # Create a grid in the x-y plane at z = 0
     nPoints = 1501
@@ -172,23 +156,22 @@ def left_unit():
     grid = np.array([[(x,y,0) for x in xs] for y in ys]) 
 
     Hfield = neo.getH(grid)  # (mT)
-    Hx_magpy = Hfield[:,:,0]
-    Hy_magpy = Hfield[:,:,1]
+    # Hx_magpy = Hfield[:,:,0]
+    # Hy_magpy = Hfield[:,:,1]
     # Hz_magpy = Hfield[:,:,2]    
     Hmag = np.linalg.norm(Hfield, axis=2)    
     check_Hmag(Hmag)
-    # print(f"{np.shape(xs) = }")
-    # print(f"{np.shape(ys) = }")
-    # print(f"{np.shape(Hx_magpy) = }")
-    # print(f"{np.shape(Hy_magpy) = }")
+    # Location and value of max(Hmag)
+    i, j = np.unravel_index(Hmag.argmax(), Hmag.shape)
+    print(f"{i = } {j = }")
+    print(f"{Hmag[i, j] = :.2f} kA/m")
     
-    # field_viewer(xs, ys, Hmag, title="Hmag", cbar_label="Hmag (kA/m)")
-
+    field_viewer(xs, ys, Hmag, title="Hmag", cbar_label="Hmag (kA/m)")
     # stream_viewer(grid, Hfield, title="Hmag (kA/m)")
         
     def save_field():
         """ Save x and y positions and Hmag for phoresis work """
-        save_dir = "/home/nav/navScripts/fenicsx/ferro-thickness/Hfield/unit_meniscus_left/"
+        save_dir = "./unit_meniscus_left/"
         header = f"x position (mm), yposition (mm) with origin in bottom left of mesh for domain of {thin_film_diam} mm diameter. Saved from {f_name}"
         pos = np.column_stack((xs, ys))
         np.savetxt(save_dir + "pos.txt", pos, header=header)
@@ -196,9 +179,10 @@ def left_unit():
         np.savetxt(save_dir + "Hmag.txt", Hmag, header=header)
         print("Saved")
 
-    # save_field()
+    if save:
+        save_field()
 
 if __name__ == "__main__":
-    f_name = "neo_field_horizontal.py"
-    left_exp()
-    # left_unit()
+    f_name = "neo_field.py"
+    left_exp(save=0)
+    left_unit(save=0)
