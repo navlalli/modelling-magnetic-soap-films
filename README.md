@@ -1,4 +1,14 @@
-Shield: [![CC BY 4.0][cc-by-shield]][cc-by]
+[![CC BY 4.0][cc-by-shield]][cc-by]
+
+# Thin film modelling of magnetic soap films
+
+The packages required and their version numbers can be found in [`conda-env.yml`](conda-env.yml).
+The python files and bash scripts in this project can be run with an active conda environment created from [`conda-env.yml`](conda-env.yml):
+```
+conda env create -f conda-env.yml
+```
+
+## License
 
 This work is licensed under a
 [Creative Commons Attribution 4.0 International License][cc-by].
