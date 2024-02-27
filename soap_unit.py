@@ -8,7 +8,6 @@ import sys
 
 from dolfinx import fem, io, mesh, plot, nls, log
 from ufl import ds, dx, grad, div, inner, dot, FacetNormal, Identity, exp, ln
-from scipy.interpolate import RegularGridInterpolator
 from mpi4py import MPI
 from petsc4py.PETSc import ScalarType
 from datetime import datetime
@@ -151,7 +150,7 @@ Vs_mid = (1.0 - theta) * Vs_n + theta * Vs
 
 H = fem.Function(V)  # Magnitude of magnetic field intensity
 H.x.array[:] = 0.1  # Assign an arbitray non-zero value
-C = fem.Function(V)  # Shape of centreline
+C = fem.Function(V)  # Centre surface
 C.x.array[:] = 0.0
 
 # Boundary fluxes
@@ -172,7 +171,7 @@ def langevin(arg):
     return 1 / ufl.tanh(arg) - 1 / arg 
 
 def M(c_t):
-    """ Magnetisation as a function of magnetite NP concentration and H """
+    """ Magnetisation as a function of c and H """
     return c_t * langevin(alpha * H) / langevin(alpha)
 
 def gamma(Gamma_t):
@@ -259,8 +258,6 @@ u.x.scatter_forward()
 #     V_h, dofs_h = ME.sub(0).collapse()
 #     plot_func_mixed(V_h, u.x.array[dofs_h].real, "h") 
 
-
-
 # =============================================================================
 # Solver
 # =============================================================================
@@ -291,7 +288,7 @@ def save_file(save, *args):
         save[func_save].write_mesh(domain)
     return save 
    
-save = save_file(save, "h", "p", "c", "Gamma", "Vs", "gradp")
+save = save_file(save, "h", "p", "c", "Gamma", "Vs")
 hs = u.sub(0)
 ps = u.sub(1)
 cs = u.sub(2)
