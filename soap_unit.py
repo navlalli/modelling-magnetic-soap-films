@@ -1,4 +1,4 @@
-""" Solving thickness field over time for a horizontal soap film of unit size """
+""" Solve thickness field over time for a horizontal soap film of unit size """
 
 import numpy as np
 import pyvista as pv
@@ -6,7 +6,7 @@ import ufl
 import time 
 import sys
 
-from dolfinx import fem, io, mesh, plot, nls, log
+from dolfinx import fem, io, plot, nls, log
 from ufl import ds, dx, grad, div, inner, dot, FacetNormal, Identity, exp, ln
 from mpi4py import MPI
 from petsc4py.PETSc import ScalarType

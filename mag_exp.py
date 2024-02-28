@@ -1,4 +1,4 @@
-""" Solving thickness field over time for a magnetic soap film under the forcing
+""" Solve thickness field over time for a magnetic soap film under the forcing
 of an inhomogeneous magnetic field with same size as in the experiments
 """
 
@@ -8,7 +8,7 @@ import ufl
 import time 
 import sys
 
-from dolfinx import fem, io, mesh, plot, nls, log
+from dolfinx import fem, io, plot, nls, log
 from ufl import ds, dx, grad, div, inner, dot, FacetNormal, Identity, exp, ln
 from scipy.interpolate import RegularGridInterpolator
 from mpi4py import MPI
