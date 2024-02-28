@@ -2,15 +2,14 @@
 
 # Create mesh from .geo file and convert to .xdmf and .h5 for use in fenicsx
 
-mesh_name="radial_exp"
-ID="195443"
+mesh_name="radial_unit"
+ID="15046"
 
-conda activate fox06
-
-# Create .msh file from .geo file
+# Create .msh file from .geo file - requires the correct conda environment to be
+# active
 cd ${mesh_name}${ID}
 gmsh ${mesh_name}.geo
 cd ../
 
-# Perform mesh conversion
+# Mesh conversion
 python3 ./mesh_converter.py ${mesh_name} ${ID}
