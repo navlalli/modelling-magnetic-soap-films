@@ -1,24 +1,16 @@
-""" Using derived lubrication model for a vertical soap film to investigate
-whether marginal regeneration can be seen at the bottom boundary 
+""" Solve thickness field over time for a vertical soap film bounded by a
+rectangular frame
 """
 
 import numpy as np
 import pyvista as pv
 import ufl
 import time 
-import matplotlib.pyplot as plt
 import sys
-import os
 
-from dolfinx import fem, io, mesh, plot, nls, log
-# from dolfinx.fem.petsc import NonlinearProblem
-# from dolfinx.nls.petsc import NewtonSolver
-from ufl import ds, dx, grad, div, inner, dot, sqrt, FacetNormal, Identity, exp, ln, as_vector
-# from scipy.interpolate import RegularGridInterpolator
-# from scipy.constants import mu_0, pi, k, N_A, e, epsilon_0, gas_constant
+from dolfinx import fem, io, plot, nls, log
+from ufl import ds, dx, grad, div, inner, dot, FacetNormal, Identity, exp, ln, as_vector
 from mpi4py import MPI
-
-from petsc4py import PETSc
 from petsc4py.PETSc import ScalarType
 from datetime import datetime
 
@@ -27,11 +19,9 @@ rank = comm.rank
 if rank == 0:
     print(f"N. of cores = {comm.Get_size()}")
 
-main_dir = "/home/nav/navScripts/fenicsx/vertical-soap/"
-case = "vertical_soap"
-sol_dir = main_dir + f"sol_{case}/"
+case = "soap_vertical"
 ID = sys.argv[1] if len(sys.argv) > 1 else "TMP"
-case_dir = sol_dir + ID + "/"
+case_dir = f"./sol_{case}/{ID}/"
 
 # =============================================================================
 # Pyvista plotting 
@@ -81,20 +71,16 @@ def assembler(ufl_form):
 # Mesh and function spaces 
 # =============================================================================
 # Uniform meshes on a square domain
-# mesh_dir = "/home/nav/navScripts/fenicsx/vertical-soap/mesh/uniform_square10478/"
-# mesh_dir = "/home/nav/navScripts/fenicsx/vertical-soap/mesh/uniform_square23252/"
-# mesh_dir = "/home/nav/navScripts/fenicsx/vertical-soap/mesh/uniform_square47288/"
-# mesh_dir = "/home/nav/navScripts/fenicsx/vertical-soap/mesh/uniform_square103086/"
-mesh_dir = "/home/nav/navScripts/fenicsx/vertical-soap/mesh/uniform_square258008/"
-# mesh_dir = "/home/nav/navScripts/fenicsx/vertical-soap/mesh/uniform_square512678/"
-mesh_file = "uniform_square.xdmf"
-Ldomain = 20.0  # Not sure how to automate this as each processor owns parts of the domain
+mesh_dir = "./mesh/square258008/"
+mesh_file = "square.xdmf"
+Ldomain = 20.0
 
 # Load in mesh from XDMF file
 with io.XDMFFile(comm, mesh_dir + mesh_file, "r") as xdmf:
     domain = xdmf.read_mesh(name="Grid")   
 tdim = domain.topology.dim
 fdim = tdim - 1
+x = ufl.SpatialCoordinate(domain)
 
 # Plot mesh    
 # if rank == 0:
@@ -104,8 +90,8 @@ fdim = tdim - 1
 DG0 = fem.FunctionSpace(domain, ("DG", 0))
 V = fem.FunctionSpace(domain, ("CG", 1))
 V2 = fem.FunctionSpace(domain, ("CG", 2))
-W0 = fem.VectorFunctionSpace(domain, ("DG", 0))
 W = fem.VectorFunctionSpace(domain, ("CG", 1))
+W0 = fem.VectorFunctionSpace(domain, ("DG", 0))
 
 hFE = ufl.FiniteElement("CG", domain.ufl_cell(), 1)
 pFE = ufl.FiniteElement("CG", domain.ufl_cell(), 1)
@@ -113,11 +99,6 @@ GammaFE = ufl.FiniteElement("CG", domain.ufl_cell(), 1)
 VsFE = ufl.VectorElement("CG", domain.ufl_cell(), 1)
 
 ME = fem.FunctionSpace(domain, ufl.MixedElement([hFE, pFE, GammaFE, VsFE]))
-
-# =============================================================================
-# Create tags
-# =============================================================================
-x = ufl.SpatialCoordinate(domain)
 
 # =============================================================================
 # Defining the variational problem
@@ -129,15 +110,15 @@ u_n = fem.Function(ME)  # Solution from previous time step
 h, p, Gamma, Vs = ufl.split(u)
 h_n, p_n, Gamma_n, Vs_n = ufl.split(u_n)
 
-epsilon = fem.Constant(domain, ScalarType(5e-3))  # Lubrication parameter
+epsilon = fem.Constant(domain, ScalarType(5e-3))  # Thin film parameter
 Gr = fem.Constant(domain, ScalarType(1))  # Gravity number
 Ma = fem.Constant(domain, ScalarType(500))  # Marangoni number
 Ca = fem.Constant(domain, ScalarType(1e-7))  # Capillary number 
 Bq_d = fem.Constant(domain, ScalarType(5e-4))  # Dilational Boussinesq number
 Bq_sh = fem.Constant(domain, ScalarType(5e-4))  # Shear Boussinesq number
-Je = fem.Constant(domain, ScalarType(0.0))  # Je / (rho * U * epsilon)
+Je = fem.Constant(domain, ScalarType(0.0))  # Evaporation
 
-# Non-dimensional terms relevant to surfactant transport
+# Non-dimensional numbers relevant to surfactant transport
 Lambda = fem.Constant(domain, ScalarType(0.15))
 Pe_s = fem.Constant(domain, ScalarType(10))
 
@@ -150,10 +131,9 @@ Vs_mid = (1.0 - theta) * Vs_n + theta * Vs
 
 # Boundary fluxes
 n = FacetNormal(domain)
-suction_power = fem.Constant(domain, ScalarType(0.0))
-suction_power.value = 5.0
-hn = fem.Constant(domain, ScalarType(0.0))
-hn.value = np.tan(0.0 * np.pi / 180)  # partialh / partialn
+P = fem.Constant(domain, ScalarType(5.0))  # Capillary suction strength
+hn = fem.Constant(domain, ScalarType(0.0))  # partial h / partial nd
+hn.value = np.tan(0.0 * np.pi / 180)
 
 A = 8.3e-6
 B = 4.2e6
@@ -183,7 +163,7 @@ L0 = h * v0 * dx - h_n * v0 * dx \
      + dt * 1/3 * Gr * div(as_vector([h_mid**3, 0])) * v0 * dx \
      + dt * Je * v0 * dx \
      + dt * 1/3 * h_mid**3 * dot(grad(Pi(h_mid)), n) * v0 * ds \
-     + dt * suction_power * h_mid**3 * v0 * ds
+     + dt * P * h_mid**3 * v0 * ds
 
 L1 = p * v1 * dx - pre_curv(Gamma) * dot(grad(h), grad(v1)) * dx + Pi(h) * v1 * dx \
      + pre_curv(Gamma) * hn * v1 * ds
@@ -222,40 +202,25 @@ u.sub(3).interpolate(lambda x: (np.full(x.shape[1], Vs_initial),
                                 np.full(x.shape[1], Vs_initial)))
 u_n.sub(3).interpolate(lambda x: (np.full(x.shape[1], Vs_initial),
                                   np.full(x.shape[1], Vs_initial)))
+u.x.scatter_forward()
 
-# Non-uniform initial h
-# def initial_h(x):
-#     """ Define spatially varying initial condition for h """
-#     return h_initial * (x[0] + x[1]) / 40 + 0.1
-# u.sub(0).interpolate(initial_h)
-# u_n.sub(0).interpolate(initial_h)
-# Plot initial h
+# # Plot initial condition for h
 # if rank == 0:
 #     V_h, dofs_h = ME.sub(0).collapse()
 #     plot_func_mixed(V_h, u.x.array[dofs_h].real, "h") 
-# sys.exit(0)
 
 # =============================================================================
 # Solver
 # =============================================================================
 a = ufl.derivative(L, u, du)
 bcs = []
-# problem = NonlinearProblem(L, u, bcs, a) 
-# solver = NewtonSolver(comm, problem)
 problem = fem.petsc.NonlinearProblem(L, u, bcs, a) 
 solver = nls.petsc.NewtonSolver(comm, problem)
-solver.convergence_criterion = "residual"  # "residual" or "incremental"
-solver.max_it = 20
+solver.convergence_criterion = "residual"
+solver.max_it = 50
 solver.rtol = 1e-10
 solver.atol = 1e-10
 solver.report = True
-# ksp = solver.krylov_solver
-# opts = PETSc.Options()
-# option_prefix = ksp.getOptionsPrefix()
-# print(opts[f"{option_prefix}ksp_type"])
-# print(opts[f"{option_prefix}pc_type"])
-# print(opts[f"{option_prefix}pc_factor_mat_solver_type"])
-# sys.exit(0)
 
 log.set_log_level(log.LogLevel.WARNING)  # INFO, WARNING, ERROR, OFF
 # Save all logging to file
@@ -288,32 +253,6 @@ save["p"].write_function(ps, 0.0)
 save["Gamma"].write_function(Gammas, 0.0)
 save["Vs"].write_function(Vs_s, 0.0)
 
-t_save = [0.0]  # The values of t at which saving is done
-def save_t(arr):
-    """ Save arr to file """
-    np.savetxt(case_dir + "t.txt", arr, header="Time values at which saving was done")
-
-# Area
-boundary_area_ufl = fem.form(fem.Constant(domain, ScalarType(1.0)) * ds)
-boundary_area = assembler(boundary_area_ufl)
-Qn_cap_ufl = fem.form(-1/3 * h_mid**3 * dot(grad(p_mid + Pi(h_mid)), n) * ds)
-Qn_bc_ufl = fem.form(suction_power * h_mid**3 * ds)
-h_neu_ufl = fem.form(dot(grad(h_mid), n) * ds)
-if rank == 0:
-    Qn_cap_l = []
-    Qn_bc_l = []
-    h_neu_l = []
-
-def test_sol():
-    """ Analyse solution runtime """
-    Qn_cap = assembler(Qn_cap_ufl) / boundary_area
-    Qn_bc = assembler(Qn_bc_ufl) / boundary_area
-    h_neu = assembler(h_neu_ufl) / boundary_area
-    if rank == 0:
-        Qn_cap_l.append(Qn_cap)
-        Qn_bc_l.append(Qn_bc)
-        h_neu_l.append(h_neu)
-
 # =============================================================================
 # Time stepping
 # =============================================================================
@@ -334,14 +273,11 @@ while (step < nsteps):
     if rank == 0:
         print(f"Number of iterations: {num_its:d}")
 
-    # Save solution
     if step % 10 == 0:
         save["h"].write_function(hs, t)
         save["p"].write_function(ps, t)
         save["Gamma"].write_function(Gammas, t)
         save["Vs"].write_function(Vs_s, t)
-        t_save.append(t)
-        test_sol()
 
     # Update solution at previous time step
     u_n.x.array[:] = u.x.array
@@ -352,34 +288,12 @@ end_time = time.time()
 for key in save:
     save[key].close()
 
-# Summary stats
 if rank == 0:
-    save_t(np.array(t_save))
-    print("\nSimulation complete")
+    print("End of simulation")
+    time_elapsed = end_time - start_time
+    average_time_step = time_elapsed / nsteps
+    print(f"\nSolving took {time_elapsed:.2f} s") 
+    print(f"Average time per time step {average_time_step:.2f} s")
     now = datetime.now()
     print(f"Finished running {__file__} at {now.time().strftime('%H:%M:%S')} on "
           f"{now.date().strftime('%d/%m/%Y')}")
-    time_elapsed = end_time - start_time
-    average_time_step = time_elapsed / nsteps
-    print(f"\nSolving time: {time_elapsed:.2f} s") 
-    print(f"Average time per time step: {average_time_step:.2f} s\n")
-    mosaic = "AB"
-    width = 10
-    fig, axs = plt.subplot_mosaic(mosaic, constrained_layout=True, figsize=(width, 0.5*width))
-    axs["A"].plot(t_save[1:], Qn_cap_l, 'b-')
-    axs["A"].plot(t_save[1:], Qn_bc_l, 'k--')
-    axs["A"].set_xlabel("t")
-    axs["A"].set_ylabel("Qn")
-    axs["B"].plot(t_save[1:], h_neu_l, 'b--')
-    axs["B"].set_xlabel("t")
-    axs["B"].set_ylabel("h_neu")
-    save_fig = 1
-    if save_fig:
-        fig_name = f"overview{ID}.png"
-        path_fig = sol_dir + "png/" + fig_name 
-        if os.path.exists(path_fig):
-            print("File already exists - file not saved")
-        else:
-            fig.savefig(path_fig, dpi=200, bbox_inches='tight')
-            print(f"Saved {fig_name}")
-    plt.show()
