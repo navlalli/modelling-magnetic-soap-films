@@ -3,6 +3,7 @@
 import numpy as np
 import magpylib as magpy
 import matplotlib.pyplot as plt 
+import os
     
 from scipy.spatial.transform import Rotation
 
@@ -100,7 +101,9 @@ def left_exp(save=0):
         
     def save_field():
         """ Save x and y positions and Hmag for phoresis work """
-        save_dir = "./exp_meniscus_left/"
+        save_dir = "./exp_left/"
+        if not os.path.exists(save_dir):
+            os.makedirs(save_dir)
         header = f"x position (mm), yposition (mm) with origin in bottom left of mesh for domain of {thin_film_diam} mm diameter. Saved from {f_name}"
         pos = np.column_stack((xs, ys))
         np.savetxt(save_dir + "pos.txt", pos, header=header)
@@ -171,7 +174,9 @@ def left_unit(save=0):
         
     def save_field():
         """ Save x and y positions and Hmag for phoresis work """
-        save_dir = "./unit_meniscus_left/"
+        save_dir = "./unit_left/"
+        if not os.path.exists(save_dir):
+            os.makedirs(save_dir)
         header = f"x position (mm), yposition (mm) with origin in bottom left of mesh for domain of {thin_film_diam} mm diameter. Saved from {f_name}"
         pos = np.column_stack((xs, ys))
         np.savetxt(save_dir + "pos.txt", pos, header=header)
@@ -184,5 +189,5 @@ def left_unit(save=0):
 
 if __name__ == "__main__":
     f_name = "neo_field.py"
-    left_exp(save=0)
-    left_unit(save=0)
+    left_exp(save=1)
+    left_unit(save=1)
