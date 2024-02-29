@@ -283,7 +283,7 @@ C.interpolate(free_shape)
 # =============================================================================
 def import_Hmag():
     """ Import the magnetic field created by magpy """
-    Hdir = "Hfield/exp_meniscus_left/"
+    Hdir = "Hfield/exp_left/"
     lcap = 2  # Capillary length (mm)
     xpos, ypos = np.loadtxt(Hdir + "pos.txt", unpack=True)
     xpos_nond = xpos / lcap  # 0 <= xpos_nond <= 18.25

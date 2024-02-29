@@ -277,7 +277,7 @@ u.x.scatter_forward()
 # =============================================================================
 def import_Hmag():
     """ Import the magnetic field created by magpy """
-    Hdir = "Hfield/unit_meniscus_left/"
+    Hdir = "Hfield/unit_left/"
     lcap = 2  # Capillary length (mm)
     xpos, ypos = np.loadtxt(Hdir + "pos.txt", unpack=True)
     xpos_nond = xpos / lcap  # 0 <= xpos_nond <= 1
