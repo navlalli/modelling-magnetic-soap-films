@@ -1,20 +1,19 @@
-""" Aim to replicate the results in Moulton and Pelesko 2010 - one-dimensional 
-simulation for a vertical magnetic soap film. Dirichlet boundary conditions for
-h and no flux boundary condition.
+""" Solve thickness over time in one dimension for a vertical magnetic soap 
+film with same assumptions, simulation parameters, and magnetic field as was 
+used in Moulton, D. E., & Pelesko, J. A. (2010). Reverse draining of a magnetic
+soap film. Physical Review E, 81(4), 046320.
+
+Simulation ran fastest with just one core in operation
 """
 
 import numpy as np
 import pyvista as pv
 import ufl
 import time 
-import matplotlib.pyplot as plt
 import sys
-import os
 
 from dolfinx import fem, io, mesh, plot, nls, log
-from ufl import ds, dx, grad, div, inner, dot, sqrt, FacetNormal
-from scipy.interpolate import RegularGridInterpolator
-from scipy.constants import mu_0, pi, k, N_A, e, epsilon_0, gas_constant
+from ufl import ds, dx, grad, dot, FacetNormal
 from mpi4py import MPI
 from petsc4py.PETSc import ScalarType
 from datetime import datetime
@@ -24,11 +23,9 @@ rank = comm.rank
 if rank == 0:
     print(f"N. of cores = {comm.Get_size()}")
 
-main_dir = "/home/nav/navScripts/fenicsx/vertical-ferro-thickness/"
-case = "oned_replicate"
-sol_dir = main_dir + f"sol_{case}/"
-ID = sys.argv[1]
-case_dir = sol_dir + ID + "/"
+case = "mag_oned"
+ID = sys.argv[1] if len(sys.argv) > 1 else "TMP"
+case_dir = f"./sol_{case}/{ID}/"
 
 # =============================================================================
 # Pyvista plotting 
@@ -58,14 +55,11 @@ def plot_func(fem_func, func_str):
     cells, types, x = plot.create_vtk_mesh(fs)
     grid = pv.UnstructuredGrid(cells, types, x)
     grid.point_data[func_str] = fem_func.x.array.real
-    # warp = grid.warp_by_scalar()
     p = pv.Plotter()
     p.add_mesh(grid, show_edges=False)
-    # p.add_mesh(warp, show_edges=False)
     p.add_title(func_str, font_size=16)
     p.view_xy()
     p.add_axes()
-    # print(f"{p.camera_position = }")
     p.show()
 
 # =============================================================================
@@ -100,9 +94,6 @@ W0 = fem.VectorFunctionSpace(domain, ("DG", 0))
 
 hFE = ufl.FiniteElement("CG", domain.ufl_cell(), 1)
 pFE = ufl.FiniteElement("CG", domain.ufl_cell(), 1)
-# cFE = ufl.FiniteElement("CG", domain.ufl_cell(), 1)
-# GammaFE = ufl.FiniteElement("CG", domain.ufl_cell(), 1)
-# VsFE = ufl.VectorElement("CG", domain.ufl_cell(), 1)
 
 ME = fem.FunctionSpace(domain, ufl.MixedElement([hFE, pFE]))
 
@@ -116,39 +107,35 @@ u_n = fem.Function(ME)  # Solution from previous time step
 h, p = ufl.split(u)
 h_n, p_n = ufl.split(u_n)
 
+epsilon = fem.Constant(domain, ScalarType(5e-3))  # Thin film parameter
+Gr = fem.Constant(domain, ScalarType(1.0))  # Gravity number
+Ca = fem.Constant(domain, ScalarType(2.5667e-5))  # Capillary number 
+Psi = fem.Constant(domain, ScalarType(47.470))  # Magnetic number
+
 # Time discretisation
 theta = 1.0
 h_mid = (1.0 - theta) * h_n + theta * h
 p_mid = (1.0 - theta) * p_n + theta * p
 
-# Non-dimensional numbers 
-epsilon = fem.Constant(domain, ScalarType(5e-3))  # Lubrication parameter
-Gr = fem.Constant(domain, ScalarType(1.0))  # Gravity number
-Ca = fem.Constant(domain, ScalarType(2.5667e-5))  # Capillary number 
-Psi = fem.Constant(domain, ScalarType(47.470))  # H * epsilon * mu_0 * Hc * Mc / (mu * U)
-# Psi = fem.Constant(domain, ScalarType(0.0))  # H * epsilon * mu_0 * Hc * Mc / (mu * U)
+H = fem.Function(V2)  # Magnitude of magnetic field intensity
 
-# Magnetic field
-H = fem.Function(V2)  # Magnitude of magnetic intensity vector field
-
-d = 7.25  # Nond gap distance = 1.25, 4.25 or 7.25
+d = 4.25  # Gap between film and current loop
 def expr_H(x):
-    """ H as a function of x """
+    """ Variation of H with position x """
     eta = 4.5455e-2
     return (1 + eta**2 * (x[0] + d)**2)**(-3/2)
 
 H.interpolate(expr_H)
 # plot_func(H, "H")
-# sys.exit(0)
 
 n = FacetNormal(domain)
 
-Qn = fem.Constant(domain, ScalarType(0.0))  # dot(Q, n)
+Qn = fem.Constant(domain, ScalarType(0.0))  # No-flux boundary condition
 dt = fem.Constant(domain, ScalarType(0.0002))
 
 def pre_curv():
     """ Strength of the curvature related term in pressure equation """
-    return (epsilon**3 / Ca)
+    return epsilon**3 / Ca
 
 def M():
     """ Magnetisation """
@@ -161,22 +148,10 @@ L0 = h * v0 * dx - h_n * v0 * dx \
      - dt * 1/3 * h_mid**3 * Gr * v0.dx(0) * dx \
      + dt * Qn * v0 * ds
 
-L1 = p * v1 * dx \
-     - pre_curv() * dot(grad(h), grad(v1)) * dx \
-     # + pre_curv() * hn * v1 * ds
+L1 = p * v1 * dx - pre_curv() * dot(grad(h), grad(v1)) * dx
 
 L = L0 + L1
 
-if rank == 0:
-    def print_params():
-        """ Print parameters of interest """
-        print("\nNon-dimensional numbers:")
-        print(f"{epsilon.value = :.4e}")
-        print(f"{Gr.value = :.4e}")
-        print(f"{Ca.value = :.4e}")
-        print(f"{Psi.value = :.4e}")
-
-    print_params()
 
 # =============================================================================
 # Initial condition
@@ -197,22 +172,8 @@ u_n.sub(1).interpolate(lambda x: np.full(x.shape[1], p_initial))
 # =============================================================================
 # Dirichlet boundary conditions 
 # =============================================================================
-h_end = fem.Function(V)  # fem.Constant(domain, ScalarType(h_initial))
+h_end = fem.Function(V)
 h_end.x.array[:] = h_initial
-# plot_func(h_end, "hend")
-# sys.exit(0)
-
-# Determine boundary facets (line segments) 
-# domain.topology.create_connectivity(fdim, tdim)
-# boundary_facets = np.flatnonzero(mesh.exterior_facet_indices(domain.topology))
-# V_h, _ = ME.sub(0).collapse()  # Sub-space for h and dofs in mixed spaced
-# # boundary_dofs_h = fem.locate_dofs_topological(ME.sub(0), fdim, boundary_facets)
-# boundary_dofs_h = fem.locate_dofs_topological((ME.sub(0), V_h), fdim, boundary_facets)
-# print(f"{rank = }: {boundary_facets = }")
-# print(f"{rank = }: {boundary_dofs_h = }")
-# # bc_h = fem.dirichletbc(h_end, boundary_dofs_h, ME.sub(0))
-# # bc_h = fem.dirichletbc(ScalarType(h_initial), boundary_dofs_h, ME.sub(0))
-# bc_h = fem.dirichletbc(h_end, boundary_dofs_h, ME.sub(0))
 
 def on_boundary(x):
     return np.logical_or(np.isclose(x[0], xstart), np.isclose(x[0], xend))
@@ -222,20 +183,15 @@ boundary_dofs_h = fem.locate_dofs_geometrical((ME.sub(0), V_h), on_boundary)
 bc_h = fem.dirichletbc(h_end, boundary_dofs_h, ME.sub(0))
 print(f"{rank = }: {boundary_dofs_h = }")
 
-# sys.exit(0)
-
-# Try locate_entities_boundary
-# Try locate_dofs_geometrical
 
 # =============================================================================
 # Solver
 # =============================================================================
 a = ufl.derivative(L, u, du)
 bcs = [bc_h]
-# bcs = []
 problem = fem.petsc.NonlinearProblem(L, u, bcs, a) 
 solver = nls.petsc.NewtonSolver(comm, problem)
-solver.convergence_criterion = "residual"  # "residual" or "incremental"
+solver.convergence_criterion = "residual"
 solver.rtol = 1e-10
 solver.atol = 1e-10
 solver.report = True
@@ -265,65 +221,38 @@ ps.name = "p"
 save["h"].write_function(hs, 0.0)  
 save["p"].write_function(ps, 0.0)
 
-t_save = [0.0]  # The values of t at which saving is done
-def save_t(arr):
-    """ Save arr to file """
-    np.savetxt(case_dir + "t.txt", arr, header="Time values at which saving was done")
-
-def save_params():
-    """ Save relevant parameters value """
-    param_path_file = sol_dir + "params/params" + ID + ".md"
-    if os.path.exists(param_path_file):
-        print("Param file already exists - file not saved")
-    else:
-        param_file = open(param_path_file, "w")  # Overwrites if already present 
-        param_file.write(f"# Params for simulation {ID}")
-        param_file.write("\n## Nond numbers")
-        param_file.write(f"\nepsilon = {epsilon.value  :.6e}")
-        param_file.write(f"\nGr = {Gr.value :.6e}")
-        param_file.write(f"\nCa = {Ca.value :.6e}")
-        param_file.write(f"\nPsi = {Psi.value :.6e}")
-        param_file.write(f"\nd = {d :.6e}")
-
-        param_file.write("\n## Boundary conditions")
-        param_file.write(f"\nQn = {Qn.value :.6e}")
-        # param_file.write(f"\nh_end = {h_end.value :.6e}")
-
-        param_file.write("\n## Simulation")
-        param_file.write(f"\ndt = {dt.value :.6e}")
-        param_file.write(f"\nnsteps = {nsteps :.6e}")
-        param_file.close()
-        print(f"Saved {param_path_file}")
-
 # Area
 domain_area_ufl = fem.form(fem.Constant(domain, ScalarType(1.0)) * dx)
 domain_area = assembler(domain_area_ufl)
 if rank == 0:
     print(f"{domain_area = :.6e}")
 
-def mag(vec):
-    """ Returns ufl for magnitude of a vector """
-    return sqrt(dot(vec, vec))
-
 # h domain
 h_ufl = fem.form(h * dx)
+h_domain = assembler(h_ufl) / domain_area  # Initial h_domain
 
 if rank == 0:
-    h_domain_l = []
+    h_domain_l = [h_domain]
+    t_save = [0.0]
 
-def test_sol():
-    """ Test boundary conditions and other solution parameters """
-    # h domain
+def post_process(t):
+    """ Post-processing of solution """
     h_domain = assembler(h_ufl) / domain_area
     if rank == 0:
         h_domain_l.append(h_domain)
-    
+        t_save.append(t)
+
+def save_h(t_arr, h_arr):
+    """ Save average h over the domain """
+    header = "Nond time, nond average thickness"
+    save_arr = np.column_stack((t_arr, h_arr))
+    np.savetxt(case_dir + f"h_{ID}.txt", save_arr, header=header)
+
 # =============================================================================
 # Time stepping
 # =============================================================================
 t = 0.0  # Initial time 
-nsteps = 81000  # round(8.085 / dt.value / 10) * 10  # N. of timesteps to run
-print(f"{nsteps = }")
+nsteps = 81000  # N. of timesteps to run
 step = 0  # Start time step number
 start_time = time.time()
 while (step < nsteps):
@@ -331,33 +260,31 @@ while (step < nsteps):
     step += 1
     
     if rank == 0:
-        print(f"Timestep {step} / {nsteps}")    
+        print(f"Timestep {step} / {nsteps}: {t = :.6e}")    
 
     num_its, converged = solver.solve(u)
     assert(converged)
     u.x.scatter_forward()
     if rank == 0:
-        print(f"Number of interations: {num_its:d}")
-    
+        print(f"Number of iterations: {num_its:d}")
+
     if step % 250 == 0:
         save["h"].write_function(hs, t)
         save["p"].write_function(ps, t)
-        t_save.append(t)
-        test_sol()
+        post_process(t)
 
     # Update solution at previous time step
     u_n.x.array[:] = u.x.array
 
 end_time = time.time()
 
-# Save time values and nond params
-if rank == 0:
-    save_t(np.array(t_save))
-    save_params()
-
 # Close XDMF files
 for key in save:
     save[key].close()
+
+# Save time values and average thickness
+if rank == 0:
+    save_h(np.array(t_save), np.array(h_domain_l))
 
 if rank == 0:
     print("End of simulation")
@@ -369,26 +296,3 @@ if rank == 0:
     print(f"Average time per time step normalised by ncpus {average_step_cpu:.2f} s")
     now = datetime.now()
     print(f"Finished running {__file__} at {now.time().strftime('%H:%M:%S')} on {now.date().strftime('%d/%m/%Y')} \n")
-
-    plot = 1
-    if plot:
-        fs = 12
-        mosaic = "A"
-        height = 5
-        width = 1.5 * height
-        fig, axs = plt.subplot_mosaic(mosaic, sharex=True, constrained_layout=True,
-                                      figsize=(width, height))
-        axs["A"].plot(np.linspace(0, 1, len(h_domain_l)), h_domain_l, 'k-')
-        axs["A"].set_xlabel(r"$t$", fontsize=fs)
-        axs["A"].set_ylabel(r"$h_{\mathrm{domain}}$", fontsize=fs)
-
-        save_fig = 1
-        if save_fig:
-            fig_name = f"overview{ID}.png"
-            path_fig = sol_dir + "png/" + fig_name 
-            if os.path.exists(path_fig):
-                print("File already exists - file not saved")
-            else:
-                fig.savefig(path_fig, dpi=200, bbox_inches='tight')
-                print(f"Saved {fig_name}")
-        plt.show()

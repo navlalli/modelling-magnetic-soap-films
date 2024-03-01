@@ -28,7 +28,9 @@ The system of partial differential equations governing the film thickness field 
 
 * [`mag_exp.py`](mag_exp.py) - a circular magnetic soap film with dimensions aligning with the experiments under the forcing of an inhomogeneous magnetic field
 
-* [`soap_vertical.py`](soap_vertical.py) - a soap film bounded by a vertical, rectangular frame 
+* [`soap_vertical.py`](soap_vertical.py) - a vertical soap film bounded by a rectangular frame 
+
+* [`mag_oned.py`](mag_oned.py) - a vertical magnetic soap film in one dimension aligning with [Moulton and Pelesko 2010](https://journals.aps.org/pre/abstract/10.1103/PhysRevE.81.046320)
 
 All simulation files can be run using the shell script [`run_sim.sh`](run_sim.sh).
 
