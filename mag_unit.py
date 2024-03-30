@@ -1,5 +1,5 @@
-""" Solve thickness field over time for a horizontal magnetic soap film of 
-unit size under the forcing of an inhomogeneous magnetic field
+""" Solve thickness field over time for a magnetic soap film of unit size under
+the forcing of an inhomogeneous magnetic field
 """
 
 import numpy as np
@@ -116,7 +116,7 @@ VsFE = ufl.VectorElement("CG", domain.ufl_cell(), 1)
 ME = fem.FunctionSpace(domain, ufl.MixedElement([hFE, pFE, cFE, GammaFE, VsFE]))
 
 # =============================================================================
-# Defining the variational problem
+# Define the variational problem
 # =============================================================================
 du = ufl.TrialFunction(ME)
 v0, v1, v2, v3, v4 = ufl.TestFunctions(ME)
@@ -129,14 +129,14 @@ epsilon = fem.Constant(domain, ScalarType(5e-3))  # Thin film parameter
 Gr = fem.Constant(domain, ScalarType(0.0))  # Gravity number
 Ma = fem.Constant(domain, ScalarType(100))  # Marangoni number
 Ca = fem.Constant(domain, ScalarType(1e-7))  # Capillary number 
-Bq_d = fem.Constant(domain, ScalarType(1.0e-3))  # Dilational Boussinesq number
+Bq_d = fem.Constant(domain, ScalarType(1.0e-3))  # Dilatational Boussinesq number
 Bq_sh = fem.Constant(domain, ScalarType(1.0e-3))  # Shear Boussinesq number
 Psi = fem.Constant(domain, ScalarType(50.0))  # Magnetic number
 Je = fem.Constant(domain, ScalarType(0.0))  # Evaporation
 
 # Non-dimensional numbers relevant to magnetite NP transport
-alpha = fem.Constant(domain, ScalarType(13.1))  # mu0 * m * H / (kb * T)
-Pe_c = fem.Constant(domain, ScalarType(6.55))  # U * L / D0
+alpha = fem.Constant(domain, ScalarType(13.1))
+Pe_c = fem.Constant(domain, ScalarType(6.55))
 phi_c = fem.Constant(domain, ScalarType(5e-4))
 
 # Non-dimensional numbers relevant to surfactant transport
@@ -144,6 +144,7 @@ Lambda = fem.Constant(domain, ScalarType(0.15))
 Pe_s = fem.Constant(domain, ScalarType(1.0))
 
 # Time discretisation
+dt = fem.Constant(domain, ScalarType(0.001))
 theta = 1.0
 h_mid = (1.0 - theta) * h_n + theta * h
 p_mid = (1.0 - theta) * p_n + theta * p
@@ -155,7 +156,7 @@ H = fem.Function(V2)  # Magnitude of magnetic field intensity
 C = fem.Function(V)  # Centre surface
 C.x.array[:] = 0.0
 
-# Boundary fluxes
+# Non-dimensional terms relevant to boundary conditions
 n = FacetNormal(domain)
 hn = fem.Constant(domain, ScalarType(0.0))  # partial h / partial nd
 hn.value = np.tan(0.0 * np.pi / 180) 
@@ -184,16 +185,14 @@ def pre_curv(Gamma_t):
     return (epsilon**2 * Ma * gamma(Gamma_t) + epsilon**3 / Ca)
 
 def drainage():
-    """ Return drainage flux """
+    """ Drainage flux """
     return Vs_mid * h_mid - 1/3 * h_mid**3 * (grad(p_mid) - Psi * M(c_mid) * grad(H))
 
 def surf_rheo(Vs_t):
     """ Tensor associated with surface rheology """
     return Bq_d * div(Vs_t) * Identity(2) + Bq_sh * grad(Vs_t)
 
-dt = fem.Constant(domain, ScalarType(0.001))
-
-# Weak form
+# Weak form: note that p is thermodynamic pressure + conjoining pressure
 alternate_bc = 0  # 1 for limiting drainage flux of core liquid out of film
 if alternate_bc:
     Q = fem.Constant(domain, ScalarType(5.0))  # Drainage flux of core liquid
@@ -203,7 +202,6 @@ if alternate_bc:
          + dt * 1/3 * h_mid**3 * dot(grad(p_mid), grad(v0)) * dx \
          + dt * Je * v0 * dx \
          + dt * 1/3 * h_mid**3 * dot(grad(Pi(h_mid)), n) * v0 * ds \
-         - dt * 1/3 * h_mid**3 * epsilon * Gr * dot(grad(h_mid + C), n) * v0 * ds \
          + dt * Q * h_mid**3 * v0 * ds
 else:
     P = fem.Constant(domain, ScalarType(2.0))  # Capillary suction strength
@@ -228,7 +226,7 @@ L2 = c * v2 * dx - c_n * v2 * dx \
 
 L3 = Gamma * v3 * dx - Gamma_n * v3 * dx \
      - dt * Gamma_mid * dot(Vs_mid, grad(v3)) * dx \
-     + dt * 1 / Pe_s / (1 - Gamma_mid) * dot(grad(Gamma_mid), grad(v3)) * dx
+     + dt / Pe_s / (1 - Gamma_mid) * dot(grad(Gamma_mid), grad(v3)) * dx
 
 L4 = - inner(surf_rheo(Vs), grad(v4)) * dx \
      + Ma * dot(grad(gamma(Gamma)), v4) * dx \
@@ -267,7 +265,7 @@ u_n.sub(4).interpolate(lambda x: (np.full(x.shape[1], Vs_initial),
                                   np.full(x.shape[1], Vs_initial)))
 u.x.scatter_forward()
 
-# # Plot initial condition for h 
+# # Plot initial condition for h
 # if rank == 0:
 #     V_h, dofs_h = ME.sub(0).collapse()
 #     plot_func_mixed(V_h, u.x.array[dofs_h].real, "h") 
@@ -369,7 +367,6 @@ save["p"].write_function(ps, 0.0)
 save["c"].write_function(cs, 0.0)
 save["Gamma"].write_function(Gammas, 0.0)
 save["Vs"].write_function(Vs_s, 0.0)
-
 
 # =============================================================================
 # Time stepping

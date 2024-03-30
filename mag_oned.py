@@ -3,7 +3,7 @@ film with same assumptions, simulation parameters, and magnetic field as was
 used in Moulton, D. E., & Pelesko, J. A. (2010). Reverse draining of a magnetic
 soap film. Physical Review E, 81(4), 046320.
 
-Simulation ran fastest with just one core in operation
+Solving was fastest with just one core in operation
 """
 
 import numpy as np
@@ -98,7 +98,7 @@ pFE = ufl.FiniteElement("CG", domain.ufl_cell(), 1)
 ME = fem.FunctionSpace(domain, ufl.MixedElement([hFE, pFE]))
 
 # =============================================================================
-# Defining the variational problem
+# Define the variational problem
 # =============================================================================
 du = ufl.TrialFunction(ME)
 v1, v0 = ufl.TestFunctions(ME)
@@ -113,25 +113,24 @@ Ca = fem.Constant(domain, ScalarType(2.5667e-5))  # Capillary number
 Psi = fem.Constant(domain, ScalarType(47.470))  # Magnetic number
 
 # Time discretisation
+dt = fem.Constant(domain, ScalarType(0.0002))
 theta = 1.0
 h_mid = (1.0 - theta) * h_n + theta * h
 p_mid = (1.0 - theta) * p_n + theta * p
 
+# Applied magnetic field
 H = fem.Function(V2)  # Magnitude of magnetic field intensity
-
 d = 4.25  # Gap between film and current loop
 def expr_H(x):
     """ Variation of H with position x """
     eta = 4.5455e-2
     return (1 + eta**2 * (x[0] + d)**2)**(-3/2)
-
 H.interpolate(expr_H)
 # plot_func(H, "H")
 
+# Non-dimensional terms relevant to boundary conditions
 n = FacetNormal(domain)
-
 Qn = fem.Constant(domain, ScalarType(0.0))  # No-flux boundary condition
-dt = fem.Constant(domain, ScalarType(0.0002))
 
 def pre_curv():
     """ Strength of the curvature related term in pressure equation """
@@ -182,7 +181,6 @@ V_h, _ = ME.sub(0).collapse()  # Sub-space for h and dofs in mixed spaced
 boundary_dofs_h = fem.locate_dofs_geometrical((ME.sub(0), V_h), on_boundary)
 bc_h = fem.dirichletbc(h_end, boundary_dofs_h, ME.sub(0))
 print(f"{rank = }: {boundary_dofs_h = }")
-
 
 # =============================================================================
 # Solver

@@ -115,7 +115,7 @@ VsFE = ufl.VectorElement("CG", domain.ufl_cell(), 1)
 ME = fem.FunctionSpace(domain, ufl.MixedElement([hFE, pFE, cFE, GammaFE, VsFE]))
 
 # =============================================================================
-# Defining the variational problem
+# Define the variational problem
 # =============================================================================
 du = ufl.TrialFunction(ME)
 v0, v1, v2, v3, v4 = ufl.TestFunctions(ME)
@@ -128,13 +128,13 @@ epsilon = fem.Constant(domain, ScalarType(5e-3))  # Thin film parameter
 Gr = fem.Constant(domain, ScalarType(245.0))  # Gravity number
 Ma = fem.Constant(domain, ScalarType(40e3))  # Marangoni number
 Ca = fem.Constant(domain, ScalarType(1e-7))  # Capillary number 
-Bq_d = fem.Constant(domain, ScalarType(2.5e-4))  # Dilational Boussinesq number
+Bq_d = fem.Constant(domain, ScalarType(2.5e-4))  # Dilatational Boussinesq number
 Bq_sh = fem.Constant(domain, ScalarType(2.5e-4))  # Shear Boussinesq number
 Psi = fem.Constant(domain, ScalarType(0.0))  # Magnetic number
 Je = fem.Constant(domain, ScalarType(0.0))  # Evaporation
 
 # Non-dimensional numbers relevant to magnetite NP transport - not relevant since
-# no magnetite nanoparticles
+# no magnetite NPs in this simulation
 alpha = fem.Constant(domain, ScalarType(15.9))
 Pe_c = fem.Constant(domain, ScalarType(2000.0))
 phi_c = fem.Constant(domain, ScalarType(7.9e-3))
@@ -144,6 +144,7 @@ Lambda = fem.Constant(domain, ScalarType(0.15))
 Pe_s = fem.Constant(domain, ScalarType(10.0))
 
 # Time discretisation
+dt = fem.Constant(domain, ScalarType(0.001))
 theta = 1.0
 h_mid = (1.0 - theta) * h_n + theta * h
 p_mid = (1.0 - theta) * p_n + theta * p
@@ -152,10 +153,10 @@ Gamma_mid = (1.0 - theta) * Gamma_n + theta * Gamma
 Vs_mid = (1.0 - theta) * Vs_n + theta * Vs
 
 H = fem.Function(V)  # Magnitude of magnetic field intensity
-H.x.array[:] = 0.1  # Assign an arbitray non-zero value
+H.x.array[:] = 0.1  # Assign an arbitrary non-zero value
 C = fem.Function(V2)  # Centre surface
 
-# Boundary fluxes
+# Non-dimensional terms relevant to boundary conditions
 n = FacetNormal(domain)
 P = fem.Constant(domain, ScalarType(5.0))  # Capillary suction strength
 hn = fem.Constant(domain, ScalarType(0.0))  # partial h / partial nd
@@ -185,16 +186,14 @@ def pre_curv(Gamma_t):
     return (epsilon**2 * Ma * gamma(Gamma_t) + epsilon**3 / Ca)
 
 def drainage():
-    """ Return drainage flux """
+    """ Drainage flux """
     return Vs_mid * h_mid - 1/3 * h_mid**3 * (grad(p_mid) - Psi * M(c_mid) * grad(H))
 
 def surf_rheo(Vs_t):
     """ Tensor associated with surface rheology """
     return Bq_d * div(Vs_t) * Identity(2) + Bq_sh * grad(Vs_t)
 
-dt = fem.Constant(domain, ScalarType(0.001))
-
-# Weak form
+# Weak form: note that p is thermodynamic pressure + conjoining pressure
 L0 = h * v0 * dx - h_n * v0 * dx \
      + dt * div(Vs_mid * h_mid) * v0 * dx \
      + dt * 1/3 * div(h_mid**3 * Psi * M(c_mid) * grad(H)) * v0 * dx \
@@ -216,7 +215,7 @@ L2 = c * v2 * dx - c_n * v2 * dx \
 
 L3 = Gamma * v3 * dx - Gamma_n * v3 * dx \
      - dt * Gamma_mid * dot(Vs_mid, grad(v3)) * dx \
-     + dt * 1 / Pe_s / (1 - Gamma_mid) * dot(grad(Gamma_mid), grad(v3)) * dx
+     + dt / Pe_s / (1 - Gamma_mid) * dot(grad(Gamma_mid), grad(v3)) * dx
 
 L4 = - inner(surf_rheo(Vs), grad(v4)) * dx \
      + Ma * dot(grad(gamma(Gamma)), v4) * dx \
@@ -255,7 +254,7 @@ u_n.sub(4).interpolate(lambda x: (np.full(x.shape[1], Vs_initial),
                                   np.full(x.shape[1], Vs_initial)))
 u.x.scatter_forward()
 
-# # Plot initial condition for h 
+# # Plot initial condition for h
 # if rank == 0:
 #     V_h, dofs_h = ME.sub(0).collapse()
 #     plot_func_mixed(V_h, u.x.array[dofs_h].real, "h") 
@@ -269,8 +268,7 @@ def free_shape(x):
     Ccentre = R - np.sqrt(R**2 - xc**2 / (epsilon_loc**2))  # C at the centre
     zc = Ccentre - R 
     C = zc + np.sqrt(R**2 - 1 / epsilon_loc**2 * ((x[0] - xc)**2 + (x[1] - yc)**2))
-    # When plotting, multiply by epsilon so both the domain and what you are plotting
-    # are normalised by L
+    # When plotting, multiply by epsilon so both the domain and C are normalised by L
     # C = epsilon_loc * (zc + np.sqrt(R**2 - 1 / epsilon_loc**2 * ((x[0] - xc)**2 + (x[1] - yc)**2)))
     return C
 
@@ -325,7 +323,6 @@ save["c"].write_function(cs, 0.0)
 save["Gamma"].write_function(Gammas, 0.0)
 save["Vs"].write_function(Vs_s, 0.0)
 
-
 # Save Ma * grad(gamma) over the domain"
 save_grad_gamma = 1
 if save_grad_gamma:
@@ -378,7 +375,7 @@ def post_process(t):
         h_domain_l.append(h_domain)
         h_circ_l.append(h_circ)
         t_save.append(t)
-        
+
 def save_h(t_arr, h_circ, h_domain):
     """ Save average h over the domain """
     header = f"Nond time, nond average thickness in centre, nond average thickness for "\
