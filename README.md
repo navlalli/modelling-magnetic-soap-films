@@ -10,11 +10,11 @@ conda env create -f conda-env.yml
 
 ## Mesh generation
 
-Mesh generation with [gmsh](https://gmsh.info/). The mesh files and scripts used are in the [`mesh`](mesh) directory.
+Mesh generation with [gmsh](https://gmsh.info/). The mesh files and scripts used are in the [`mesh`](mesh) directory. Each mesh can be created using the shell script [`mesh_generation.sh`](mesh/mesh_generation.sh).
 
 ## Magnetic field intensity
 
-The magnetic field produced by the neodymium magnet used in the experiments was computed using [Magpylib](https://magpylib.readthedocs.io/en/latest/), with code provided in the [`Hfield`](Hfield) directory.
+The magnetic field produced by the neodymium magnet used in the experiments was computed using [Magpylib](https://magpylib.readthedocs.io/en/latest/), with code provided in the [`Hfield`](Hfield) directory. Run [`neo_field.py`](Hfield/neo_field.py) to create the magnetic fields used in the simulations.
 
 ## Simulation files
 
@@ -32,7 +32,7 @@ The system of partial differential equations governing the film thickness field 
 
 * [`mag_oned.py`](mag_oned.py) - a vertical magnetic soap film in one dimension aligning with [Moulton and Pelesko 2010](https://journals.aps.org/pre/abstract/10.1103/PhysRevE.81.046320)
 
-All simulation files can be run using the shell script [`run_sim.sh`](run_sim.sh).
+All simulation files can be run using the shell script [`run_sim.sh`](run_sim.sh), assuming the mesh (see [`mesh`](mesh)) and applied magnetic field (see [`Hfield`](Hfield)) have first been created.
 
 ## License
 
