@@ -34,6 +34,16 @@ The system of partial differential equations governing the film thickness field 
 
 All simulation files can be run using the shell script [`run_sim.sh`](run_sim.sh), assuming the mesh (see [`mesh`](mesh)) and applied magnetic field (see [`Hfield`](Hfield)) have first been created.
 
+## Example simulations
+
+A circular, horizontal magnetic soap film in an inhomogeneous magnetic field
+
+![](post/mag_exp.mp4)
+
+A vertical soap film bounded by a square frame
+
+![](post/soap_vertical.mp4)
+
 ## License
 
 This work is licensed under a
