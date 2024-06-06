@@ -38,11 +38,11 @@ All simulation files can be run using the shell script [`run_sim.sh`](run_sim.sh
 
 A circular, horizontal magnetic soap film in an inhomogeneous magnetic field
 
-![](post/mag_exp.mp4)
+https://github.com/navlalli/modelling-magnetic-soap-films/assets/88741755/012dcce8-4907-4eec-8ffe-19c3d5d87f77
 
 A vertical soap film bounded by a square frame
 
-![](post/soap_vertical.mp4)
+https://github.com/navlalli/modelling-magnetic-soap-films/assets/88741755/2396d003-fbd7-45ac-ba83-42e9f8973c0e
 
 ## License
 
